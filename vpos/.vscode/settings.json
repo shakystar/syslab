@@ -1,0 +1,7 @@
+{
+    "files.associations": {
+        "*.gradle": "gradle",
+        "vh_variant_hal.h": "c",
+        "vh_io_hal.h": "c"
+    }
+}
