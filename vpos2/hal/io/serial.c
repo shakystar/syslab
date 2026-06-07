@@ -6,27 +6,28 @@
 #include "dd.h"
 #include "printk.h"
 
+#define FIFO_MODE
+
 void vh_serial_interrupt_handler(void);
 
 char getc(void)
 {
 	char c;
-	unsigned long rxstat;
+	// unsigned long rxstat; // unused?
 
 	/* Write getc func */
-	while (UARTFR & UARTFR_RXFE);
+	// while (UARTFR & UARTFR_RXFE);
 
-	c = UARTDR;
-	rxstat = UARTFR & UARTFR_RXFE;
+	// c = UARTDR;
 
 	/* End getc func */
 	
-	// while (pop_idx == push_idx);
+	while (pop_idx == push_idx);
 	
-	// c = serial_buff[pop_idx++];
+	c = serial_buff[pop_idx++];
 
-	// if (pop_idx == SERIAL_BUFF_SIZE)
-	// 	pop_idx = 0;
+	if (pop_idx == SERIAL_BUFF_SIZE)
+		pop_idx = 0;
 	
 	return c;
 }
@@ -44,19 +45,25 @@ void vh_serial_init(void)
 	unsigned int idiv, fdiv;
 
 	/*  baud rate Here  */
-	// double tmp = UART_CLK/(16*UART_BAUDRATE);
 	idiv = (unsigned int)(UART_CLK/(16*UART_BAUDRATE));
-	fdiv = 1; // (unsigned int)(((tmp-idiv)*64)+0.5f);
+	fdiv = (unsigned int)((((UART_CLK/(16*UART_BAUDRATE))-idiv)*64)+0.5f);
 
 	/*  baud rate End  */
     UARTIBRD = idiv;
     UARTFBRD = fdiv;
 
 	// set UART ctrl regs
+#ifdef FIFO_MODE
 	UARTLCR_H = 0b0000000001110110;
-	UARTCR = 0b0000001100000001;
-	UARTIMSC = 0b1111100111101111;
-	UARTIFLS = 0b0000000000000100;
+	UARTIMSC =	0b0000000111101111;
+	UARTIFLS = 	0b0000000000000100;
+	UARTCR 	  = 0b0000001100000001;
+#else
+	UARTLCR_H = 0b0000000001100110;
+	// UARTIMSC =	0b0000000111101111;
+	// UARTIFLS = 	0b0000000000000100;
+	UARTCR 	  = 0b0000001100000001;
+#endif
 	
 	// clear buffer
 	push_idx = 0;
@@ -68,6 +75,28 @@ void vh_serial_init(void)
 void vh_serial_irq_enable(void)
 {	
 	/* enable GIC & interrupt */
+
+	// not all of which are the same number.
+	int n = INTERRUPT_ID_UART;
+
+	// clear active & pending status
+	GICD_ICACTIVER(n/32) = (1 << (n % 32));
+	GICD_ICPENDR(n/32) = (1 << (n % 32));
+
+	// enable interrupt
+	GICD_ISENABLER(n/32) = (1 << (n % 32));
+
+	// set interrupt target (to cpu 0)
+	GICD_ITARGETSR(n/4) = 1 << ((n % 4) * 8);
+
+	// set interrupt triggering type (edge-triggering)
+	GICD_ICFGR(n/16) = 0b11 << ((n % 16) * 2);
+
+	// clear uart interrupts
+	UARTICR = 0b0000000111111111; 
+
+	// enable UART Interrupt Mask RX
+	UARTIMSC = 0b0000000000010000;
 }
 
 void vk_serial_push(void)

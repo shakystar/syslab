@@ -81,12 +81,23 @@ unsigned int get_1sec()
 
 void vh_timer_init(void)
 {
+	write_cntkctl((unsigned int)(0b1100000011));
 	vk_timer_flag = 0;
 }
 
 void vh_timer_irq_enable()
 {
+	int n = INTERRUPT_ID_TIMER;
 
+	// clear active & pending status
+	GICD_ICACTIVER(n/32) = (1 << (n % 32));
+	GICD_ICPENDR(n/32) = (1 << (n % 32));
+
+	// enable interrupt
+	GICD_ISENABLER(n/32) = (1 << (n % 32));
+
+	// set interrupt target (to cpu 0)
+	GICD_ITARGETSR(n/4) = 1 << ((n % 4) * 8);
 }
 
 void vh_timer_interrupt_handler(void)
@@ -95,6 +106,9 @@ void vh_timer_interrupt_handler(void)
 	vh_save_thread_ctx(vk_timer_save_stk);
 		
 	// timer interrupt clear & enable
+	int n = INTERRUPT_ID_TIMER;
+	GICD_ICPENDR(n/32) = (1 << (n % 32));
+	vk_timer_irq_enable();
 
 	vk_sched_save_tcb_ptr = (unsigned int)vk_timer_save_stk;
 	vk_timer_flag = 1;
@@ -107,10 +121,13 @@ void vh_timer_interrupt_handler(void)
 
 void vk_timer_irq_enable()
 {
+	unsigned int sec_1 = get_1sec();
+	write_cntp_tval(sec_1/16);
 
+	write_cntp_ctl(0b1);
 }
 
 void vk_timer_irq_disable(void)
 {		
-
+	write_cntp_ctl(0b0);
 }

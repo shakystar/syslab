@@ -136,18 +136,58 @@ vk_dabort:
 	b 		vk_dabort_handler
 
 vh_software_interrupt:
+	str		sp, vk_save_swi_mode_stack_ptr
+	stmfd 	sp, {r14}^
+	sub 	sp, sp, #4
+	stmfd	sp, {r13}^
+	sub 	sp, sp, #4
+	stmfd	sp!, {r0-r12}
+	mrs		r0, spsr_all
+	stmfd	sp!, {r0, lr}
+	
+	mrs		r0, cpsr
+	orr		r0, r0, #0x80
+	msr		cpsr, r0
+	
+	str		sp, vk_save_swi_current_tcb_bottom
+	ldr		r0, [sp, #4*2]
 
 	bl		vk_swi_classifier
 
 vh_leaving_swi:
+	ldmfd	sp!, {r0, lr}
+	msr		spsr_cxsf, r0
+	ldmfd	sp!, {r0-r12}
+	ldmfd	sp, {r13}^
+	add 	sp, sp, #4
+	ldmfd	sp, {r14}^
+	add 	sp, sp, #4
 
+	movs	pc, lr
 
 vh_irq:
+	sub		lr, lr, #4
+	str		sp, vk_save_irq_mode_stack_ptr
+	stmfd	sp, {r14}^
+	sub		sp, sp, #4
+	stmfd	sp, {r13}^
+	sub		sp, sp, #4
+	stmfd	sp!, {r0-r12}
+	mrs		r0, spsr_all
+	stmfd	sp!, {r0, lr}
 
 	str		sp, vk_save_irq_current_tcb_bottom
+
 	bl		vk_irq_handler
 
 vh_leaving_irq:
+	ldmfd	sp!, {r0, lr}
+	msr		spsr_cxsf, r0
+	ldmfd	sp!, {r0-r12}
+	ldmfd	sp, {r13}^
+	add		sp, sp, #4
+	ldmfd	sp, {r14}^
+	add		sp, sp, #4
 
 	movs	pc, lr
 
